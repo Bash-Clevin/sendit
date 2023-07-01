@@ -96,29 +96,30 @@ func handleFolderTransfers(s ssh.Session) {
 	s.Write([]byte{0x00})
 
 	reader := bufio.NewReader(s)
-	raw, err := reader.ReadString('\n')
+	header, err := parseFileHeader(reader)
 	if err != nil {
-		log.Fatal(err)
+		logrus.Error(err)
+		return
 	}
+	fmt.Println(header)
+	s.Write([]byte{0x00})
 
-	header, err := parseFileHeader(raw)
+	header, err = parseFileHeader(reader)
 	if err != nil {
 		logrus.Error(err)
 		return
 	}
 
-	fmt.Println(header)
-	s.Write([]byte{0x00})
-	header, err = parseFileHeader(raw)
-
+	link := generateRandomString(12)
+	fmt.Println("Download link", link)
+	pipes[link] = newPipe()
+	w := <-pipes[link].wch
+	n, err := io.CopyN(w, s, header.Filesize)
 	if err != nil {
-		log.Fatal(err)
+		logrus.Errorf("Copy error: %s", err)
+		return
 	}
-
-	// buf := make([]byte, 1000)
-	// s.Read(buf)
-	// fmt.Println(string(buf))
-	// s.Write([]byte{0x00})
-	// s.Read(buf)
-	// fmt.Println(string(buf))
+	close(pipes[link].donech)
+	fmt.Println("bytes streamed", n)
+	fmt.Println(header)
 }
